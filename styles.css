@@ -669,12 +669,22 @@ header p {
 
 /* Footer */
 footer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
     text-align: center;
     margin-top: 50px;
     padding-top: 20px;
     border-top: 1px solid var(--border-glow);
     color: var(--text-light);
     font-size: 0.9rem;
+}
+
+footer p {
+    margin: 0;
+    width: 100%;
+    text-align: center;
 }
 
 footer a {
