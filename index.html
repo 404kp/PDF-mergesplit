@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Merge & Split Tool</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📄 PDF Tool</h1>
+            <p>PDFs zusammenführen, teilen und extrahieren - alles im Browser</p>
+        </header>
+
+        <!-- Tab Navigation -->
+        <div class="tabs">
+            <button class="tab-button active" data-tab="merge">
+                <span class="icon">🔗</span> PDFs Zusammenführen
+            </button>
+            <button class="tab-button" data-tab="split">
+                <span class="icon">✂️</span> PDF Teilen/Extrahieren
+            </button>
+            <button class="tab-button" data-tab="organize">
+                <span class="icon">🔃</span> Seiten Sortieren
+            </button>
+        </div>
+
+        <!-- Merge Tab -->
+        <div id="merge-tab" class="tab-content active">
+            <div class="upload-area" id="merge-upload">
+                <div class="upload-icon">📤</div>
+                <h3>PDFs hochladen</h3>
+                <p>Klicken oder Dateien hierher ziehen</p>
+                <input type="file" id="merge-file-input" accept=".pdf" multiple hidden>
+            </div>
+
+            <div id="merge-files-list" class="files-list"></div>
+
+            <button id="merge-button" class="action-button" disabled>
+                <span class="icon">🔗</span> PDFs Zusammenführen
+            </button>
+        </div>
+
+        <!-- Split Tab -->
+        <div id="split-tab" class="tab-content">
+            <div class="upload-area" id="split-upload">
+                <div class="upload-icon">📤</div>
+                <h3>PDF hochladen</h3>
+                <p>Klicken oder Datei hierher ziehen</p>
+                <input type="file" id="split-file-input" accept=".pdf" hidden>
+            </div>
+
+            <div id="split-info" class="split-info hidden">
+                <h3 id="split-filename"></h3>
+                <p id="split-pages"></p>
+
+                <div class="split-options">
+                    <div class="option-card">
+                        <h4>✂️ PDF Teilen</h4>
+                        <p>Teile die PDF an einer bestimmten Seite</p>
+                        <label>Nach Seite teilen:</label>
+                        <input type="number" id="split-at-page" min="1" placeholder="z.B. 3">
+                        <button id="split-button" class="action-button">PDF Teilen</button>
+                    </div>
+
+                    <div class="option-card">
+                        <h4>📑 Seiten Extrahieren</h4>
+                        <p>Extrahiere einen bestimmten Seitenbereich</p>
+                        <label>Von Seite:</label>
+                        <input type="number" id="extract-from" min="1" placeholder="z.B. 5">
+                        <label>Bis Seite:</label>
+                        <input type="number" id="extract-to" min="1" placeholder="z.B. 10">
+                        <button id="extract-button" class="action-button">Seiten Extrahieren</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Organize Tab -->
+        <div id="organize-tab" class="tab-content">
+            <div class="upload-area" id="organize-upload">
+                <div class="upload-icon">📤</div>
+                <h3>PDF zum Bearbeiten hochladen</h3>
+                <p>Klicken oder Datei hierher ziehen</p>
+                <input type="file" id="organize-file-input" accept=".pdf" hidden>
+            </div>
+
+            <div id="organize-workspace" class="hidden">
+                <div class="tools-panel">
+                    <div class="tool-group">
+                        <h4>➡️ Verschieben</h4>
+                        <div class="input-group">
+                            <input type="number" id="move-from" placeholder="Von" min="1" class="small-input">
+                            <span class="separator">-</span>
+                            <input type="number" id="move-to" placeholder="Bis" min="1" class="small-input">
+                            <span class="separator">→</span>
+                            <input type="number" id="move-insert" placeholder="Pos" min="1" class="small-input">
+                            <button id="btn-move" class="mini-btn">Go</button>
+                        </div>
+                    </div>
+                    
+                    <div class="tool-group">
+                        <h4>🔄 Tauschen</h4>
+                        <div class="input-group">
+                            <input type="number" id="swap-a" placeholder="Seite A" min="1" class="small-input">
+                            <span class="separator">↔️</span>
+                            <input type="number" id="swap-b" placeholder="Seite B" min="1" class="small-input">
+                            <button id="btn-swap" class="mini-btn">Go</button>
+                        </div>
+                    </div>
+
+                    <div class="tool-group">
+                        <h4>↻ Rotieren</h4>
+                        <div class="input-group">
+                            <input type="number" id="rotate-page" placeholder="Seite" min="1" class="small-input">
+                            <button id="btn-rotate" class="mini-btn">90°</button>
+                        </div>
+                    </div>
+
+                    <div class="tool-group">
+                        <h4>🗑️ Löschen</h4>
+                        <div class="input-group">
+                            <input type="number" id="delete-page" placeholder="Seite" min="1" class="small-input">
+                            <button id="btn-delete" class="mini-btn danger">X</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="page-grid-container">
+                    <h4>Seitenübersicht:</h4>
+                    <div id="page-grid" class="page-grid"></div>
+                </div>
+
+                <button id="organize-download" class="action-button">
+                    <span class="icon">💾</span> PDF herunterladen
+                </button>
+            </div>
+        </div>
+
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Verarbeite PDF...</p>
+        </div>
+
+        <div id="status" class="status hidden"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+    <script>
+        // Worker für pdf.js konfigurieren
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    </script>
+    <script src="script.js"></script>
+</body>
+</html>
