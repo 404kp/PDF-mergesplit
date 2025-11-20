@@ -667,6 +667,28 @@ header p {
     to { transform: translateY(0); opacity: 1; }
 }
 
+/* Footer */
+footer {
+    text-align: center;
+    margin-top: 50px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-glow);
+    color: var(--text-light);
+    font-size: 0.9rem;
+}
+
+footer a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+
+footer a:hover {
+    color: var(--secondary);
+    text-shadow: 0 0 10px var(--secondary-glow);
+}
+
 /* Utility */
 .hidden {
     display: none !important;
