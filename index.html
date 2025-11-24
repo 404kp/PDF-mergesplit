@@ -24,6 +24,9 @@
             <button class="tab-button" data-tab="organize">
                 <span class="icon">🔃</span> PDF Organisieren
             </button>
+            <button class="tab-button" data-tab="misc">
+                <span class="icon">🛠️</span> Sonstiges
+            </button>
         </div>
 
         <!-- Merge Tab -->
@@ -32,6 +35,9 @@
                 <div class="upload-icon">📤</div>
                 <h3>PDFs hochladen</h3>
                 <p>Klicken oder Dateien hierher ziehen</p>
+                <button class="mini-btn use-last-pdf-btn hidden" style="margin-top: 15px; background: var(--secondary); color: white;">
+                    📂 Letzte bearbeitete PDF verwenden
+                </button>
                 <input type="file" id="merge-file-input" accept=".pdf" multiple hidden>
             </div>
 
@@ -48,6 +54,9 @@
                 <div class="upload-icon">📤</div>
                 <h3>PDF hochladen</h3>
                 <p>Klicken oder Datei hierher ziehen</p>
+                <button class="mini-btn use-last-pdf-btn hidden" style="margin-top: 15px; background: var(--secondary); color: white;">
+                    📂 Letzte bearbeitete PDF verwenden
+                </button>
                 <input type="file" id="split-file-input" accept=".pdf" hidden>
             </div>
 
@@ -83,6 +92,9 @@
                 <div class="upload-icon">📤</div>
                 <h3>PDF zum Bearbeiten hochladen</h3>
                 <p>Klicken oder Datei hierher ziehen</p>
+                <button class="mini-btn use-last-pdf-btn hidden" style="margin-top: 15px; background: var(--secondary); color: white;">
+                    📂 Letzte bearbeitete PDF verwenden
+                </button>
                 <input type="file" id="organize-file-input" accept=".pdf" hidden>
             </div>
 
@@ -135,6 +147,98 @@
                 <button id="organize-download" class="action-button">
                     <span class="icon">💾</span> PDF herunterladen
                 </button>
+            </div>
+        </div>
+
+        <!-- Misc Tab -->
+        <div id="misc-tab" class="tab-content">
+            <div class="upload-area" id="misc-upload">
+                <div class="upload-icon">📤</div>
+                <h3>PDF für Bearbeitung hochladen</h3>
+                <p>Klicken oder Datei hierher ziehen</p>
+                <button class="mini-btn use-last-pdf-btn hidden" style="margin-top: 15px; background: var(--secondary); color: white;">
+                    📂 Letzte bearbeitete PDF verwenden
+                </button>
+                <input type="file" id="misc-file-input" accept=".pdf" hidden>
+            </div>
+
+            <div id="misc-workspace" class="hidden">
+                <!-- Sub-Navigation für Misc -->
+                <div class="misc-nav">
+                    <button class="misc-nav-btn active" data-tool="signature">✍️ Unterschrift</button>
+                    <button class="misc-nav-btn" data-tool="text">📝 Text</button>
+                    <button class="misc-nav-btn" data-tool="blank">⬜ Leere Seiten</button>
+                </div>
+
+                <!-- Tool: Unterschrift -->
+                <div id="tool-signature" class="misc-tool-content active">
+                    <div class="signature-workspace">
+                        <div class="signature-preview-layer" id="sig-preview-container">
+                            <div class="canvas-wrapper" id="sig-canvas-wrapper">
+                                <canvas id="sig-preview-canvas"></canvas>
+                                <img id="sig-preview-image" class="hidden" draggable="false">
+                            </div>
+                        </div>
+
+                        <!-- Floating Controls -->
+                        <div class="floating-controls">
+                            <div class="floating-header">
+                                <h4>✍️ Unterschrift</h4>
+                                <button id="add-signature-btn" class="mini-btn">Speichern</button>
+                            </div>
+
+                            <div class="control-row">
+                                <label>Bild hochladen:</label>
+                                <input type="file" id="signature-file-input" accept="image/png, image/jpeg">
+                            </div>
+                            
+                            <div class="control-row">
+                                <label>Seite:</label>
+                                <div class="page-nav">
+                                    <button id="sig-prev-page">◀</button>
+                                    <span id="sig-current-page-display">1</span>
+                                    <button id="sig-next-page">▶</button>
+                                </div>
+                            </div>
+
+                            <div class="control-row">
+                                <label>Größe:</label>
+                                <input type="range" id="sig-size-slider" min="20" max="500" value="150">
+                            </div>
+
+                            <div class="coords-display">
+                                X: <span id="val-x">50</span> Y: <span id="val-y">50</span>
+                            </div>
+                            
+                            <p class="hint">Bild auf die Vorschau ziehen zum Platzieren.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tool: Text -->
+                <div id="tool-text" class="misc-tool-content">
+                    <div class="text-extract-container">
+                        <p>Der Text wird aus allen Seiten extrahiert und intelligent sortiert.</p>
+                        <button id="extract-text-btn" class="action-button">
+                            <span class="icon">📄</span> Text als .txt herunterladen
+                        </button>
+                        <div class="text-preview-box">
+                            <label>Vorschau (Erste 1000 Zeichen):</label>
+                            <textarea id="text-preview-area" readonly></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tool: Leere Seiten -->
+                <div id="tool-blank" class="misc-tool-content">
+                    <div class="blank-pages-controls">
+                        <p>Wähle die Seiten aus, <strong>nach</strong> denen eine leere Seite eingefügt werden soll.</p>
+                        <button id="insert-blank-btn" class="action-button">
+                            <span class="icon">➕</span> Einfügen & Speichern
+                        </button>
+                    </div>
+                    <div id="misc-page-grid" class="page-grid"></div>
+                </div>
             </div>
         </div>
 

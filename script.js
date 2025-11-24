@@ -9,6 +9,12 @@ let organizePdfDoc = null;
 let organizePageCount = 0;
 let organizePdfJsDoc = null; // Für Thumbnails
 
+// Global State for "Continue Editing"
+let lastGeneratedPdf = {
+    bytes: null,
+    name: null
+};
+
 // DOM Elements
 const mergeTab = document.getElementById('merge-tab');
 const splitTab = document.getElementById('split-tab');
@@ -586,9 +592,540 @@ organizeDownloadBtn.addEventListener('click', async () => {
     }
 });
 
+// ========== MISC FUNCTIONALITY ==========
+
+const miscUploadArea = document.getElementById('misc-upload');
+const miscFileInput = document.getElementById('misc-file-input');
+const miscWorkspace = document.getElementById('misc-workspace');
+
+// Navigation
+const miscNavBtns = document.querySelectorAll('.misc-nav-btn');
+const miscTools = document.querySelectorAll('.misc-tool-content');
+
+// Signature Tool
+const signatureFileInput = document.getElementById('signature-file-input');
+const addSignatureBtn = document.getElementById('add-signature-btn');
+const sigPrevPageBtn = document.getElementById('sig-prev-page');
+const sigNextPageBtn = document.getElementById('sig-next-page');
+const sigCurrentPageDisplay = document.getElementById('sig-current-page-display');
+const sigSizeSlider = document.getElementById('sig-size-slider');
+const valX = document.getElementById('val-x');
+const valY = document.getElementById('val-y');
+const sigPreviewCanvas = document.getElementById('sig-preview-canvas');
+const sigPreviewImage = document.getElementById('sig-preview-image');
+const sigPreviewContainer = document.getElementById('sig-preview-container');
+
+// Text Tool
+const extractTextBtn = document.getElementById('extract-text-btn');
+const textPreviewArea = document.getElementById('text-preview-area');
+
+// Blank Pages Tool
+const insertBlankBtn = document.getElementById('insert-blank-btn');
+const miscPageGrid = document.getElementById('misc-page-grid');
+
+// State
+let miscFile = null;
+let miscPdfDoc = null;
+let miscArrayBuffer = null;
+let miscPdfJsDoc = null;
+
+// Signature State
+let sigImageBytes = null;
+let sigImageType = null;
+let sigCurrentPage = 1;
+let sigX = 50;
+let sigY = 50; // PDF Coordinates (bottom-left)
+let sigWidth = 150;
+let sigAspectRatio = 1;
+
+// Blank Pages State
+let selectedPagesForBlank = new Set();
+
+// --- Event Listeners ---
+
+// Tab Navigation
+miscNavBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        miscNavBtns.forEach(b => b.classList.remove('active'));
+        miscTools.forEach(t => t.classList.remove('active'));
+        
+        btn.classList.add('active');
+        document.getElementById(`tool-${btn.dataset.tool}`).classList.add('active');
+        
+        // Refresh views if needed
+        if (btn.dataset.tool === 'signature' && miscFile) renderSignaturePreview();
+        if (btn.dataset.tool === 'blank' && miscFile) renderMiscPageGrid();
+    });
+});
+
+miscUploadArea.addEventListener('click', () => miscFileInput.click());
+miscFileInput.addEventListener('change', (e) => handleMiscFile(e.target.files[0]));
+
+miscUploadArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    miscUploadArea.classList.add('dragover');
+});
+
+miscUploadArea.addEventListener('dragleave', () => {
+    miscUploadArea.classList.remove('dragover');
+});
+
+miscUploadArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    miscUploadArea.classList.remove('dragover');
+    handleMiscFile(e.dataTransfer.files[0]);
+});
+
+async function handleMiscFile(file) {
+    if (!file || file.type !== 'application/pdf') {
+        showStatus('Bitte eine PDF-Datei hochladen!', true);
+        return;
+    }
+    
+    showLoading(true);
+    
+    try {
+        miscFile = file;
+        miscArrayBuffer = await file.arrayBuffer();
+        miscPdfDoc = await PDFDocument.load(miscArrayBuffer);
+        
+        // Load for rendering
+        const loadingTask = pdfjsLib.getDocument(miscArrayBuffer.slice(0));
+        miscPdfJsDoc = await loadingTask.promise;
+        
+        miscWorkspace.classList.remove('hidden');
+        miscUploadArea.style.display = 'none';
+        
+        // Init Views
+        renderSignaturePreview();
+        renderMiscPageGrid();
+        
+    } catch (error) {
+        console.error(error);
+        showStatus('Fehler beim Laden der PDF!', true);
+    } finally {
+        showLoading(false);
+    }
+}
+
+// --- Signature Logic ---
+
+// Drag & Drop Logic for Signature
+let isDraggingSig = false;
+let dragStartX, dragStartY;
+
+// Allow dropping files onto the canvas wrapper to load them as signature
+const sigCanvasWrapper = document.getElementById('sig-canvas-wrapper');
+
+sigCanvasWrapper.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    sigCanvasWrapper.style.boxShadow = '0 0 30px var(--primary)';
+});
+
+sigCanvasWrapper.addEventListener('dragleave', () => {
+    sigCanvasWrapper.style.boxShadow = '';
+});
+
+sigCanvasWrapper.addEventListener('drop', (e) => {
+    e.preventDefault();
+    sigCanvasWrapper.style.boxShadow = '';
+    
+    const file = e.dataTransfer.files[0];
+    if (file && (file.type === 'image/png' || file.type === 'image/jpeg')) {
+        // Manually trigger the file input logic
+        // We can't set files on input directly easily, but we can call the handler
+        handleSignatureFile(file);
+    }
+});
+
+// Extract signature file handling to reusable function
+async function handleSignatureFile(file) {
+    sigImageBytes = await file.arrayBuffer();
+    sigImageType = file.type;
+    
+    const url = URL.createObjectURL(file);
+    sigPreviewImage.src = url;
+    sigPreviewImage.classList.remove('hidden');
+    
+    const img = new Image();
+    img.onload = () => {
+        sigAspectRatio = img.width / img.height;
+        updateSigPreviewPosition();
+    };
+    img.src = url;
+}
+
+// Update the original file input listener to use this function
+signatureFileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) handleSignatureFile(file);
+});
+
+sigPrevPageBtn.addEventListener('click', () => {
+    if (sigCurrentPage > 1) {
+        sigCurrentPage--;
+        renderSignaturePreview();
+    }
+});
+
+sigNextPageBtn.addEventListener('click', () => {
+    if (miscPdfDoc && sigCurrentPage < miscPdfDoc.getPageCount()) {
+        sigCurrentPage++;
+        renderSignaturePreview();
+    }
+});
+
+sigSizeSlider.addEventListener('input', (e) => {
+    sigWidth = parseInt(e.target.value);
+    updateSigPreviewPosition();
+});
+
+
+sigPreviewImage.addEventListener('mousedown', (e) => {
+    isDraggingSig = true;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    sigPreviewImage.style.cursor = 'grabbing';
+    e.preventDefault(); // Prevent default drag behavior
+});
+
+window.addEventListener('mousemove', (e) => {
+    if (!isDraggingSig) return;
+    
+    const dx = e.clientX - dragStartX;
+    const dy = e.clientY - dragStartY;
+    
+    // Update visual position (HTML coordinates)
+    const currentLeft = parseFloat(sigPreviewImage.style.left || 0);
+    const currentTop = parseFloat(sigPreviewImage.style.top || 0);
+    
+    // Boundaries check
+    const canvasWidth = sigPreviewCanvas.width;
+    const canvasHeight = sigPreviewCanvas.height;
+    const imgWidth = parseFloat(sigPreviewImage.style.width);
+    const imgHeight = parseFloat(sigPreviewImage.style.height);
+    
+    let newLeft = currentLeft + dx;
+    let newTop = currentTop + dy;
+    
+    // Optional: Constrain to canvas
+    // newLeft = Math.max(0, Math.min(newLeft, canvasWidth - imgWidth));
+    // newTop = Math.max(0, Math.min(newTop, canvasHeight - imgHeight));
+    
+    sigPreviewImage.style.left = `${newLeft}px`;
+    sigPreviewImage.style.top = `${newTop}px`;
+    
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+});
+
+window.addEventListener('mouseup', () => {
+    if (isDraggingSig) {
+        isDraggingSig = false;
+        sigPreviewImage.style.cursor = 'move';
+        // Update logical coordinates (PDF coordinates)
+        updatePdfCoordinatesFromVisual();
+    }
+});
+
+async function renderSignaturePreview() {
+    if (!miscPdfJsDoc) return;
+    
+    sigCurrentPageDisplay.textContent = sigCurrentPage;
+    
+    const page = await miscPdfJsDoc.getPage(sigCurrentPage);
+    const viewport = page.getViewport({ scale: 1.0 }); // 100% scale for preview
+    
+    sigPreviewCanvas.width = viewport.width;
+    sigPreviewCanvas.height = viewport.height;
+    
+    const context = sigPreviewCanvas.getContext('2d');
+    await page.render({ canvasContext: context, viewport: viewport }).promise;
+    
+    // Reset signature position to center if it's off-screen or first load
+    // But try to keep relative position if possible? No, simpler to reset or keep absolute.
+    // Let's keep absolute PDF coords and map to new page size.
+    updateSigPreviewPosition();
+}
+
+function updateSigPreviewPosition() {
+    if (!sigPreviewImage.src) return;
+    
+    // Map PDF coords (bottom-left) to HTML coords (top-left)
+    // PDF: (x, y) -> HTML: (x, canvasHeight - y - imgHeight)
+    
+    const canvasHeight = sigPreviewCanvas.height;
+    const imgHeight = sigWidth / sigAspectRatio;
+    
+    sigPreviewImage.style.width = `${sigWidth}px`;
+    sigPreviewImage.style.height = `${imgHeight}px`;
+    
+    const htmlLeft = sigX;
+    const htmlTop = canvasHeight - sigY - imgHeight;
+    
+    sigPreviewImage.style.left = `${htmlLeft}px`;
+    sigPreviewImage.style.top = `${htmlTop}px`;
+    
+    valX.textContent = Math.round(sigX);
+    valY.textContent = Math.round(sigY);
+}
+
+function updatePdfCoordinatesFromVisual() {
+    const canvasHeight = sigPreviewCanvas.height;
+    const imgHeight = sigWidth / sigAspectRatio;
+    
+    const htmlLeft = parseFloat(sigPreviewImage.style.left);
+    const htmlTop = parseFloat(sigPreviewImage.style.top);
+    
+    // HTML (top-left) -> PDF (bottom-left)
+    // y_pdf = canvasHeight - y_html - imgHeight
+    
+    sigX = htmlLeft;
+    sigY = canvasHeight - htmlTop - imgHeight;
+    
+    valX.textContent = Math.round(sigX);
+    valY.textContent = Math.round(sigY);
+}
+
+addSignatureBtn.addEventListener('click', async () => {
+    if (!miscPdfDoc || !sigImageBytes) {
+        showStatus('Bitte PDF und Bild laden!', true);
+        return;
+    }
+    
+    showLoading(true);
+    try {
+        let image;
+        if (sigImageType === 'image/png') {
+            image = await miscPdfDoc.embedPng(sigImageBytes);
+        } else {
+            image = await miscPdfDoc.embedJpg(sigImageBytes);
+        }
+        
+        const page = miscPdfDoc.getPage(sigCurrentPage - 1);
+        // We need to handle scaling. The preview was at scale 1.0 (72 DPI usually).
+        // PDF-Lib uses points (1/72 inch). So 1px in canvas usually maps to 1 point in PDF.
+        // However, if the PDF page is huge, we might need to check dimensions.
+        // For now, we assume 1:1 mapping from our canvas preview to PDF points.
+        
+        const dims = image.scaleToFit(sigWidth, sigWidth); // Maintain aspect ratio
+        
+        page.drawImage(image, {
+            x: sigX,
+            y: sigY,
+            width: dims.width,
+            height: dims.height,
+        });
+        
+        const pdfBytes = await miscPdfDoc.save();
+        downloadPDF(pdfBytes, `signed_${miscFile.name}`);
+        showStatus('Unterschrift hinzugefügt!');
+        
+    } catch (error) {
+        console.error(error);
+        showStatus('Fehler beim Speichern!', true);
+    } finally {
+        showLoading(false);
+    }
+});
+
+// --- Text Extraction Logic (Improved) ---
+
+extractTextBtn.addEventListener('click', async () => {
+    if (!miscPdfJsDoc) return;
+    
+    showLoading(true);
+    try {
+        let fullText = '';
+        
+        for (let i = 1; i <= miscPdfJsDoc.numPages; i++) {
+            const page = await miscPdfJsDoc.getPage(i);
+            const textContent = await page.getTextContent();
+            
+            // Improved sorting: Sort by Y (descending), then X (ascending)
+            // Note: PDF Y coordinates go from bottom to top.
+            const items = textContent.items.map(item => ({
+                str: item.str,
+                x: item.transform[4], // transform[4] is x translation
+                y: item.transform[5], // transform[5] is y translation
+                height: item.height || 10 // fallback height
+            }));
+            
+            // Sort items
+            items.sort((a, b) => {
+                // Group by line (allow small vertical differences)
+                const lineDiff = Math.abs(a.y - b.y);
+                if (lineDiff < (a.height / 2)) {
+                    return a.x - b.x; // Same line: sort left to right
+                }
+                return b.y - a.y; // Different line: sort top to bottom
+            });
+            
+            // Join text
+            let pageText = '';
+            let lastY = -1;
+            
+            items.forEach(item => {
+                if (lastY !== -1 && Math.abs(item.y - lastY) > item.height) {
+                    pageText += '\n'; // New line
+                } else if (pageText.length > 0 && !pageText.endsWith(' ') && !pageText.endsWith('\n')) {
+                    pageText += ' '; // Space between words
+                }
+                pageText += item.str;
+                lastY = item.y;
+            });
+            
+            fullText += `--- Seite ${i} ---\n\n${pageText}\n\n`;
+        }
+        
+        // Show preview
+        textPreviewArea.value = fullText.substring(0, 1000) + (fullText.length > 1000 ? '...' : '');
+        
+        // Download
+        const blob = new Blob([fullText], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${miscFile.name.replace('.pdf', '')}_text.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        showStatus('Text extrahiert!');
+        
+    } catch (error) {
+        console.error(error);
+        showStatus('Fehler beim Extrahieren!', true);
+    } finally {
+        showLoading(false);
+    }
+});
+
+// --- Blank Pages Logic ---
+
+async function renderMiscPageGrid() {
+    miscPageGrid.innerHTML = '';
+    if (!miscPdfJsDoc) return;
+    
+    for (let i = 1; i <= miscPdfJsDoc.numPages; i++) {
+        const card = document.createElement('div');
+        card.className = 'page-card';
+        if (selectedPagesForBlank.has(i)) card.classList.add('selected');
+        
+        const canvas = document.createElement('canvas');
+        card.appendChild(canvas);
+        
+        const label = document.createElement('span');
+        label.className = 'page-number';
+        label.textContent = i;
+        card.appendChild(label);
+        
+        // Click handler
+        card.addEventListener('click', () => {
+            if (selectedPagesForBlank.has(i)) {
+                selectedPagesForBlank.delete(i);
+                card.classList.remove('selected');
+            } else {
+                selectedPagesForBlank.add(i);
+                card.classList.add('selected');
+            }
+        });
+        
+        miscPageGrid.appendChild(card);
+        
+        // Render thumbnail
+        renderThumbnailForGrid(i, canvas);
+    }
+}
+
+async function renderThumbnailForGrid(pageNum, canvas) {
+    try {
+        const page = await miscPdfJsDoc.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 0.2 });
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        
+        await page.render({
+            canvasContext: canvas.getContext('2d'),
+            viewport: viewport
+        }).promise;
+    } catch (e) { console.error(e); }
+}
+
+insertBlankBtn.addEventListener('click', async () => {
+    if (!miscPdfDoc || selectedPagesForBlank.size === 0) {
+        showStatus('Bitte mindestens eine Seite auswählen!', true);
+        return;
+    }
+    
+    showLoading(true);
+    try {
+        const newPdf = await PDFDocument.create();
+        const pageCount = miscPdfDoc.getPageCount();
+        
+        // Copy all pages first
+        const copiedPages = await newPdf.copyPages(miscPdfDoc, miscPdfDoc.getPageIndices());
+        
+        for (let i = 0; i < pageCount; i++) {
+            const pageNum = i + 1;
+            newPdf.addPage(copiedPages[i]);
+            
+            // If this page was selected, add a blank page after it
+            if (selectedPagesForBlank.has(pageNum)) {
+                const { width, height } = copiedPages[i].getSize();
+                newPdf.addPage([width, height]);
+            }
+        }
+        
+        const pdfBytes = await newPdf.save();
+        downloadPDF(pdfBytes, `${miscFile.name.replace('.pdf', '')}_with_blanks.pdf`);
+        showStatus('Leere Seiten eingefügt!');
+        
+    } catch (error) {
+        console.error(error);
+        showStatus('Fehler beim Einfügen!', true);
+    } finally {
+        showLoading(false);
+    }
+});
+
 // ========== UTILITY FUNCTIONS ==========
 
+function updateLastGeneratedPdf(pdfBytes, filename) {
+    lastGeneratedPdf.bytes = pdfBytes;
+    lastGeneratedPdf.name = filename;
+    
+    // Show "Use Last PDF" buttons
+    document.querySelectorAll('.use-last-pdf-btn').forEach(btn => {
+        btn.classList.remove('hidden');
+        btn.title = `Verwende: ${filename}`;
+    });
+}
+
+// Event Listeners for "Use Last PDF" buttons
+document.querySelectorAll('.use-last-pdf-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent triggering upload area click
+        if (!lastGeneratedPdf.bytes) return;
+        
+        const file = new File([lastGeneratedPdf.bytes], lastGeneratedPdf.name, { type: 'application/pdf' });
+        
+        // Determine which tab we are in and call appropriate handler
+        const uploadArea = btn.closest('.upload-area');
+        if (uploadArea.id === 'merge-upload') {
+            handleMergeFiles([file]);
+        } else if (uploadArea.id === 'split-upload') {
+            handleSplitFile(file);
+        } else if (uploadArea.id === 'organize-upload') {
+            handleOrganizeFile(file);
+        } else if (uploadArea.id === 'misc-upload') {
+            handleMiscFile(file);
+        }
+    });
+});
+
 function downloadPDF(pdfBytes, filename) {
+    updateLastGeneratedPdf(pdfBytes, filename);
+
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
