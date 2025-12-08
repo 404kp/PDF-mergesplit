@@ -33,36 +33,75 @@ body {
     background-attachment: fixed;
     color: var(--text);
     line-height: 1.6;
-    padding: 20px;
+    padding: 0;
     min-height: 100vh;
 }
 
 .container {
     max-width: 900px;
     margin: 0 auto;
+    padding: 20px;
 }
 
-header {
-    text-align: center;
+header.main-header {
+    width: 100%;
+    background: #02040a; /* Sehr dunkler Hintergrund wie im Bild */
+    border-bottom: 1px solid rgba(0, 240, 255, 0.1);
+    padding: 40px 40px;
     margin-bottom: 40px;
-    position: relative;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    backdrop-filter: blur(10px);
 }
 
-header h1 {
+.header-left {
+    flex: 1;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.header-center {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+}
+
+.header-right {
+    flex: 1;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.header-title {
     font-size: 2.5rem;
-    font-weight: 800;
-    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    margin-bottom: 10px;
-    text-shadow: var(--glow-primary);
-    letter-spacing: -1px;
+    font-weight: 700;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    text-shadow: 0 0 15px var(--primary-glow);
+    background: none;
+    -webkit-text-fill-color: initial;
 }
 
-header p {
-    color: var(--text-light);
-    font-size: 1.1rem;
+.header-logo {
+    width: 80px;
+    height: auto;
+    filter: drop-shadow(0 0 8px var(--primary-glow));
+    transition: transform 0.3s ease;
+}
+
+.header-logo:hover {
+    transform: scale(1.1);
 }
 
 /* Tabs */
